@@ -44,8 +44,10 @@ const profileSchema = new Schema(
         deleted_at: {
             type: Date,
             default: null
+        },
+        refreshToken: {
+            type: String
         }
-
     },
     {timestamps: true}
 );

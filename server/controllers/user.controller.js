@@ -2,8 +2,9 @@ import asyncHandler from '../Utils/asyncHandler.js';
 import Profile from '../models/profile.model.js';
 import ApiError from '../Utils/ApiError.js';
 import ApiResponse from '../Utils/ApiResponse.js';
+import mongoose, { Schema } from 'mongoose';
 
-//Generaet Tokens
+//Generate Tokens
 const generateTokens = async (user_id) {
     try {
         const user = await Profile.findById(user_id);
@@ -114,3 +115,5 @@ const logoutUser = asyncHandler(async (req, res) => {
     .clearCookie('refreshToken', options)
     .json(new ApiResponse(200, "User logged out", null))
 })
+
+export { registerUser, loginUser, logoutUser };

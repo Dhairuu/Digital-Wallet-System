@@ -12,7 +12,7 @@ const accountSchema = new Schema(
             ref: 'Bank',
             required: true,
         },
-        amount: {
+        balance: {
             type: Number,
             default: 0,
         },

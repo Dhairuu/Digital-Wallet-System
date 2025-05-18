@@ -18,8 +18,16 @@ app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 
 app.use(cookieParser());
 
-import UserRouter from './routes/user.routes.js';
+import userRouter from './routes/user.routes.js';
 
-app.use('/api/v1/user', UserRouter);
+app.use('/api/v1/user', userRouter);
+
+import walletRouter from './routes/wallet.routes.js';
+
+app.use('/api/v1/wallet', walletRouter);
+
+import accountRouter from './routes/account.routes.js';
+
+app.use('/api/v1/accounts', accountRouter);
 
 export default app;

@@ -2,6 +2,11 @@ import { Schema, model } from "mongoose";
 
 const accountSchema = new Schema(
     {
+        account_name: {
+            type: String,
+            required: true,
+            trim: true
+        },
         user_id: {
             type: Schema.Types.ObjectId,
             ref: 'Profile',
@@ -12,9 +17,19 @@ const accountSchema = new Schema(
             ref: 'Bank',
             required: true,
         },
+        account_type: {
+            type: String,
+            enum: ["savings", "current", "fixed"],
+            default: "savings"
+        },  
         balance: {
             type: Number,
             default: 0,
+        },
+        currency: {
+            type: String,
+            enum: ["INR", "USD"],
+            default: "INR",
         },
         flagged: {
             status: {

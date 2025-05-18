@@ -4,11 +4,12 @@ import ApiError from "../Utils/ApiError.js";
 import ApiResponse from "../Utils/ApiResponse.js";
 import { Account } from "../models/account.model.js";
 import { Transaction } from "../models/transaction.model.js";
+import currencyConverter from "../Utils/currencyConverter.js";
 
 const deposit = asyncHandler(async (req, res) => {
-    const { account_id, deposit_amount } = req.body;
-
-    if (!mongoose.Types.ObjectId.isValid(account_id)) { // This is something like a Types.isValid
+    const { account_id, deposit_amount, currency } = req.body;
+    let new_deposit_amount = deposit_amount;
+    if (!mongoose.Types.ObjectId.isValid(account_id)) {
         throw new ApiError(400, "Invalid account id type");
     }
 
@@ -20,9 +21,21 @@ const deposit = asyncHandler(async (req, res) => {
         throw new ApiError(402, "Deposit amount needs to be positive.");
     }
 
-    const updatedAccount = await Account.findByIdAndUpdate(
+    const account = await Account.findOne(
+        {_id: account_id, user_id: req.user._id, deleted_at: null}
+    );
+
+    if (!account) {
+        throw new ApiError(400, "Account not found");
+    }
+
+    if (currency.toUpperCase() !== account.currency) {
+        new_deposit_amount = currencyConverter(new_deposit_amount, currency.toUpperCase(), account.currency);
+    }
+
+    const updatedAccount = await Account.findOneAndUpdate(
         { _id: account_id, user_id: req.user._id, deleted_at: null },
-        { $inc: { balance: deposit_amount } },
+        { $inc: { balance: new_deposit_amount } },
         { new: true }
     );
 
@@ -31,7 +44,7 @@ const deposit = asyncHandler(async (req, res) => {
             account_id: account_id,
             transaction_type: "deposit",
             status: "failed",
-            amount: deposit_amount,
+            amount: new_deposit_amount,
             metadata: {
                 reason: "Account not found",
                 attempted_by: req.user._id
@@ -43,7 +56,7 @@ const deposit = asyncHandler(async (req, res) => {
     const transactionLog = await Transaction.create({
         account_id: updatedAccount._id,
         transaction_type: "deposit",
-        amount: deposit_amount,
+        amount: new_deposit_amount,
         status: "success",
         metadata: {
             from_account: null,
@@ -61,7 +74,8 @@ const deposit = asyncHandler(async (req, res) => {
 });
 
 const withdraw = asyncHandler(async (req, res) => {
-    const { withdraw_amount, account_id } = req.body;
+    const { withdraw_amount, account_id, currency } = req.body;
+    let new_withdraw_amount = withdraw_amount;
 
     if (!mongoose.Types.ObjectId.isValid(account_id)) {
         throw new ApiError(400, "Invalid account Id.");
@@ -78,20 +92,24 @@ const withdraw = asyncHandler(async (req, res) => {
     const account = await Account.findOne({
         _id: account_id,
         user_id: req.user._id,
-        deleted_at: false,
-        flagged: false,
+        deleted_at: null,
+        "flagged.status": false,
     });
 
     if (!account) {
         throw new ApiError(404, "Account with these credentials was not found.");
     }
 
-    if (account.balance < withdraw_amount) {
+    if (currency.toUpperCase() !== account.currency) {
+        new_withdraw_amount = currencyConverter(new_withdraw_amount, currency.toUpperCase(), account.currency);
+    }
+
+    if (account.balance < new_withdraw_amount) {
         await Transaction.create({
             account_id: account_id,
             transaction_type: "withdraw",
             status: "failed",
-            amount: withdraw_amount,
+            amount: new_withdraw_amount,
             description: "Insufficient balance.",
             metadata: {
                 reason: "Insufficient balance",
@@ -104,9 +122,9 @@ const withdraw = asyncHandler(async (req, res) => {
     const updatedAccount = await Account.findOneAndUpdate(
         {
             _id: account_id,
-            balance: { $gte: withdraw_amount }
+            balance: { $gte: new_withdraw_amount }
         },
-        { $inc: { balance: -withdraw_amount } },
+        { $inc: { balance: -new_withdraw_amount } },
         { new: true }
     );
 
@@ -115,7 +133,7 @@ const withdraw = asyncHandler(async (req, res) => {
             account_id: account_id,
             transaction_type: "withdraw",
             status: "failed",
-            amount: withdraw_amount,
+            amount: new_withdraw_amount,
             metadata: {
                 reason: "Race condition or update failure",
                 attempted_by: req.user._id,
@@ -127,7 +145,7 @@ const withdraw = asyncHandler(async (req, res) => {
     const transactionLog = await Transaction.create({
         account_id: updatedAccount._id,
         transaction_type: "withdraw",
-        amount: withdraw_amount,
+        amount: new_withdraw_amount,
         status: "success",
         metadata: {
             from_account: updatedAccount._id,
@@ -144,7 +162,7 @@ const withdraw = asyncHandler(async (req, res) => {
 
 const transferFunds = asyncHandler(async(req, res) => {
     const { from_account_id, to_account_id, transfer_amount } = req.body;
-
+    let new_transfer_amount = transfer_amount;
     if (!mongoose.Types.ObjectId.isValid(from_account_id) || !mongoose.Types.ObjectId.isValid(to_account_id)) {
         throw new ApiError(400, "Invalid account(s) type.");
     }
@@ -158,12 +176,12 @@ const transferFunds = asyncHandler(async(req, res) => {
     }
 
     const session = await mongoose.startSession();
-    session.startSession();
+    session.startTransaction();
 
     try {
         const [from_account, to_account] = await Promise.all([
-            Account.findOne({ _id: from_account_id, user_id: req.user._id, deleted_at: null, flagged: false }).session(session),
-            Account.findOne({ _id: to_account_id, deleted_at: null, flagged: false }).session()
+            Account.findOne({ _id: from_account_id, user_id: req.user._id, deleted_at: null, "flagged.status": false }).session(session),
+            Account.findOne({ _id: to_account_id, deleted_at: null, "flagged.status": false }).session(session)
         ])
 
         if (!from_account) {
@@ -171,6 +189,10 @@ const transferFunds = asyncHandler(async(req, res) => {
         }
         if (!to_account) {
             throw new ApiError(400, "Recipient account either flagged or doesn't exist");
+        }
+
+        if (from_account.currency !== to_account.currency) {
+            new_transfer_amount = currencyConverter(new_transfer_amount, from_account.currency, to_account.currency);
         }
 
         if (from_account.balance < transfer_amount) {
@@ -190,7 +212,7 @@ const transferFunds = asyncHandler(async(req, res) => {
         }
 
         from_account.balance -= transfer_amount;
-        to_account.balance += transfer_amount;
+        to_account.balance += new_transfer_amount;
 
         await from_account.save({ session });
         await to_account.save({ session });
@@ -210,14 +232,14 @@ const transferFunds = asyncHandler(async(req, res) => {
             account_id: to_account_id,
             transaction_type: "deposit",
             status: "success",
-            amount: transfer_amount,
+            amount: new_transfer_amount,
             description: `Received ₹${transfer_amount} from account ${from_account_id}`,
             metadata: {
                 from_account: from_account_id,
                 to_account: to_account_id,
                 received_by: to_account.user_id,
             }
-        }], { session });
+        }], { session, ordered: true });
 
         await session.commitTransaction();
         session.endSession();

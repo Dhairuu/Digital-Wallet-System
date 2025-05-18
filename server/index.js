@@ -1,6 +1,6 @@
 import databaseConnection from "./database/databaseConnection.js";
 import app from "./app.js";
-
+import './jobs/scheduler.js'
 databaseConnection()
 .then(() => {
     app.use('error', (error) => {

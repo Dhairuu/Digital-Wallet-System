@@ -3,6 +3,7 @@ import { Profile } from '../models/profile.model.js';
 import ApiError from '../Utils/ApiError.js';
 import ApiResponse from '../Utils/ApiResponse.js';
 import mongoose, { Schema } from 'mongoose';
+import { Account } from '../models/account.model.js';
 
 //Generate Tokens
 const generateTokens = async (user_id)  => {
@@ -114,6 +115,25 @@ const logoutUser = asyncHandler(async (req, res) => {
     .clearCookie('accessToken', options)
     .clearCookie('refreshToken', options)
     .json(new ApiResponse(200, "User logged out", null))
-})
+});
 
-export { registerUser, loginUser, logoutUser };
+const viewTransactionHistory = asyncHandler(async (req, res) => {
+    const { account_id } = req.body;
+    const account = await Account.findOne(
+        { _id: account_id, user_id: req.user._id, deleted_at: null },
+    );
+
+    if (!account) {
+        throw new ApiError(404, "Account not found");
+    } 
+
+    const transactionHistory = await Transaction.find({ account_id: account_id }).sort({ createdAt: -1 });
+
+    if (!transactionHistory || transactionHistory.length === 0) {
+        throw new ApiError(404, "No Transaction history");
+    }
+
+    res.status(200).json(new ApiResponse(200, "Transaction History", transactionHistory));
+});
+
+export { registerUser, loginUser, logoutUser, viewTransactionHistory };

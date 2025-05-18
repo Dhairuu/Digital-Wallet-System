@@ -1,5 +1,5 @@
 import { Schema, model } from 'mongoose';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
 const profileSchema = new Schema(
@@ -46,7 +46,8 @@ const profileSchema = new Schema(
             default: null
         },
         refreshToken: {
-            type: String
+            type: String,
+            default: null
         }
     },
     {timestamps: true}
@@ -72,7 +73,7 @@ profileSchema.methods.comparePassword = async function (enteredPassword) {
     return await bcrypt.compare(enteredPassword, this.password);
 }
 
-profileSchema.methods.generateRefreshToken = async function () {
+profileSchema.methods.generateRefreshToken = function () {
     const refreshToken = jwt.sign({
         _id: this._id,
         role: this.role,
@@ -83,7 +84,7 @@ profileSchema.methods.generateRefreshToken = async function () {
     return refreshToken;
 }
 
-profileSchema.methods.generateAccessToken = async function () {
+profileSchema.methods.generateAccessToken = function () {
     const accessToken = jwt.sign({
         _id: this.id,
         role: this.role,

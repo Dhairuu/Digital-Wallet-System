@@ -1,11 +1,11 @@
 import asyncHandler from '../Utils/asyncHandler.js';
-import Profile from '../models/profile.model.js';
+import { Profile } from '../models/profile.model.js';
 import ApiError from '../Utils/ApiError.js';
 import ApiResponse from '../Utils/ApiResponse.js';
 import mongoose, { Schema } from 'mongoose';
 
 //Generate Tokens
-const generateTokens = async (user_id) {
+const generateTokens = async (user_id)  => {
     try {
         const user = await Profile.findById(user_id);
         const accessToken = user.generateAccessToken();
@@ -89,8 +89,8 @@ const loginUser = asyncHandler(async (req, res) => {
     .cookie('accessToken', accessToken, options)
     .json(new ApiResponse(200, "User logged in", {
         user: loggedInUser,
-        accessToken,
-        refreshToken
+        accessToken: accessToken,
+        refreshToken: refreshToken
     }));
 })
 
